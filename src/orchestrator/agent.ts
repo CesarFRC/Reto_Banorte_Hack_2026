@@ -1,13 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
-import { env, hasGeminiKey } from '../config/env.js';
+import Groq from 'groq-sdk';
+import { env, hasGroqKey } from '../config/env.js';
 import { mcpRegistry } from '../mcp/registry.js';
-import { A2UIMessageSchema, A2UI_GEMINI_SCHEMA } from './a2ui-schema.js';
+import { A2UIMessageSchema, A2UI_JSON_SCHEMA } from './a2ui-schema.js';
 import type { A2UIMessage } from './a2ui-schema.js';
 
 // ─── Types ──────────────────────────────────────────────
 export interface ConversationTurn {
-  role: 'user' | 'model';
-  parts: Array<{ text: string }>;
+  role: 'user' | 'model' | 'assistant';
+  parts?: Array<{ text: string }>;
+  content?: string;
 }
 
 export interface AgentInput {
@@ -50,7 +51,42 @@ CONTEXTO DEL USUARIO:
 - Sueldo mensual: $45,000 MXN
 - Usuario ID: usr_banorte_demo
 
-Siempre responde en español mexicano. Sé cálida pero profesional.`;
+Siempre responde en español mexicano. Se calida pero profesional.
+
+REGLAS DE FORMATO:
+- Las fechas en el JSON siempre deben tener formato DD/MM/YYYY HH:mm (ej. 12/09/2026 15:30). ¡Nunca uses ISO 8601 ni la letra T/Z!
+- En los elementos de DynamicBankView, usa siempre el campo "content" (NO "text", NO "title") para el texto de header y text. Para key_value usa "label" y "value". Para bar_chart usa "data".
+- Mantén los elementos mínimos y concisos: máximo 5 elements por DynamicBankView para no exceder el limite de tokens.
+
+RESPUESTA OBLIGATORIA: JSON puro con exactamente estas claves: speechText (string), component (uno de los listados arriba), props (objeto con datos de la herramienta), availableActions (array de strings). SIN texto extra, SIN markdown, SOLO el JSON.`;
+
+// ─── JSON Auto-Repair ───────────────────────────────────────
+function repairJson(raw: string): string {
+  // Remove common model preambles (```json or similar)
+  let s = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  // Try to parse as-is first
+  try { JSON.parse(s); return s; } catch {}
+
+  // Count open/close brackets to close unclosed ones
+  const openCurlies = (s.match(/{/g) || []).length;
+  const closeCurlies = (s.match(/}/g) || []).length;
+  const openSquares = (s.match(/\[/g) || []).length;
+  const closeSquares = (s.match(/]/g) || []).length;
+
+  // If the string ends mid-value, truncate at last complete key-value pair
+  // Remove trailing incomplete segment: ,"key": "incomplete...
+  s = s.replace(/,\s*"[^"]*"\s*:\s*"[^"]*$/, '');
+  s = s.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, '');
+  s = s.replace(/,\s*"[^"]*"\s*$/, '');
+  s = s.replace(/,\s*\{[^}]*$/, '');
+
+  // Close open arrays then objects
+  for (let i = 0; i < openSquares - closeSquares; i++) s += ']';
+  for (let i = 0; i < openCurlies - closeCurlies; i++) s += '}';
+
+  return s;
+}
 
 // ─── Mock Response (when no API key) ────────────────────
 function createMockResponse(message: string): A2UIMessage {
@@ -66,42 +102,6 @@ function createMockResponse(message: string): A2UIMessage {
         suggestedLimits: [500, 1000, 2500, 5000],
       },
       availableActions: ['create_card_500', 'create_card_1000', 'create_card_2500', 'create_card_custom'],
-    };
-  }
-
-  if (lower.includes('fraude') || lower.includes('cargo') || lower.includes('no reconozco') || lower.includes('sospechoso')) {
-    return {
-      speechText: 'Entiendo tu preocupación. Voy a revisar tus transacciones recientes para identificar cualquier actividad sospechosa.',
-      component: 'FraudAlertView',
-      props: {
-        status: 'scanning',
-        message: 'Analizando tus transacciones recientes...',
-      },
-      availableActions: ['review_transactions', 'freeze_card', 'file_dispute'],
-    };
-  }
-
-  if (lower.includes('suscripci') || lower.includes('netflix') || lower.includes('spotify') || lower.includes('cobro recurrente')) {
-    return {
-      speechText: 'Voy a revisar todas tus suscripciones activas para que decidas cuáles conservar.',
-      component: 'SubscriptionManager',
-      props: {
-        status: 'loading',
-        message: 'Cargando tus suscripciones...',
-      },
-      availableActions: ['view_subscriptions', 'cancel_selected'],
-    };
-  }
-
-  if (lower.includes('adelanto') || lower.includes('nómina') || lower.includes('préstamo') || lower.includes('dinero')) {
-    return {
-      speechText: 'Voy a verificar tu elegibilidad para un adelanto de nómina. Dame un momento.',
-      component: 'PayrollAdvance',
-      props: {
-        status: 'checking',
-        message: 'Verificando tu elegibilidad...',
-      },
-      availableActions: ['check_eligibility', 'request_advance'],
     };
   }
 
@@ -126,118 +126,88 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     userMessage = `[ACCIÓN DEL USUARIO] El usuario ejecutó la acción "${input.actionContext.action}" con los siguientes datos: ${JSON.stringify(input.actionContext.payload)}. Genera la UI apropiada para mostrar el resultado.`;
   }
 
-  // ── If no Gemini API key, use mock ────────────────────
-  if (!hasGeminiKey) {
-    console.log('⚠️  No Gemini API key — using mock response');
+  // ── If no Groq API key, use mock ──────────────────────
+  if (!hasGroqKey) {
+    console.log('⚠️  No GROQ_API_KEY — using mock response');
     return {
       a2ui: createMockResponse(userMessage),
       toolsUsed,
     };
   }
 
-  // ── Initialize Gemini ─────────────────────────────────
-  const genai = new GoogleGenAI({ apiKey: env.GOOGLE_GENAI_API_KEY });
+  // ── Initialize Groq ───────────────────────────────────
+  const groq = new Groq({ apiKey: env.GROQ_API_KEY });
 
   // ── Build conversation history ────────────────────────
-  const contents: ConversationTurn[] = [
-    ...input.conversationHistory,
-    { role: 'user', parts: [{ text: userMessage }] },
+  const messages: any[] = [
+    { role: 'system', content: SYSTEM_PROMPT }
   ];
 
-  // ── First call: Let Gemini decide if it needs tools ───
-  const toolsConfig = mcpRegistry.toGeminiTools();
+  for (const turn of input.conversationHistory) {
+    const role = turn.role === 'model' ? 'assistant' : 'user';
+    const content = turn.parts ? turn.parts.map(p => p.text).join(' ') : turn.content || '';
+    if (content) {
+      messages.push({ role, content });
+    }
+  }
 
-  let response = await genai.models.generateContent({
-    model: 'gemini-3.6-flash',
-    contents,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.2,
-        maxOutputTokens: 1024,
-      tools: [toolsConfig],
-    },
-  });
+  messages.push({ role: 'user', content: userMessage });
 
-  // ── Tool calling loop ─────────────────────────────────
-  // If Gemini requests tool calls, execute them and feed results back
-  let maxIterations = 5; // Safety limit
+  const tools = mcpRegistry.toGroqTools();
+
+  let response;
+  let maxIterations = 5;
+
   while (maxIterations > 0) {
-    const candidate = response.candidates?.[0];
-    if (!candidate?.content?.parts) break;
+    // ── Call Groq ───────────────────────────────────────
+    response = await groq.chat.completions.create({
+      model: 'qwen/qwen3.8-27b',
+      messages,
+      tools: tools.length > 0 ? tools : undefined,
+      temperature: 0.2,
+      max_tokens: 900,
+    });
 
-    const functionCalls = candidate.content.parts.filter(
-      (p: any) => p.functionCall
-    );
+    const choice = response.choices[0];
+    const message = choice.message;
 
-    if (functionCalls.length === 0) break;
+    // Check if Groq wants to call tools
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      // Append assistant's tool calls to history
+      messages.push(message);
 
-    // Execute each function call
-    const functionResponses: any[] = [];
+      // Execute each tool
+      for (const tc of message.tool_calls) {
+        console.log(`  🔧 Tool call: ${tc.function.name}(${tc.function.arguments})`);
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments); } catch(e) {}
+        
+        const result = await mcpRegistry.execute(tc.function.name, args);
+        toolsUsed.push(tc.function.name);
 
-    for (const part of functionCalls) {
-      const fc = (part as any).functionCall;
-      console.log(`  🔧 Tool call: ${fc.name}(${JSON.stringify(fc.args)})`);
-
-      const result = await mcpRegistry.execute(fc.name, fc.args || {});
-      toolsUsed.push(fc.name);
-
-      functionResponses.push({
-        functionResponse: {
-          name: fc.name,
-          response: result.success
-            ? result.result
-            : { error: result.error },
-        },
-      });
+        // Append tool result to history
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          name: tc.function.name,
+          content: JSON.stringify(result.success ? result.result : { error: result.error })
+        });
+      }
+      
+      maxIterations--;
+      continue;
     }
 
-    // Add model's function call response and our function results to history
-    contents.push({
-      role: 'model',
-      parts: candidate.content.parts as any,
-    });
-    contents.push({
-      role: 'user',
-      parts: functionResponses as any,
-    });
-
-    // Call Gemini again with tool results + structured output
-    response = await genai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents,
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.2,
-        maxOutputTokens: 1024,
-        tools: [toolsConfig],
-        responseMimeType: 'application/json',
-        responseSchema: A2UI_GEMINI_SCHEMA as any,
-      },
-    });
-
-    maxIterations--;
+    // No tool calls, break loop
+    break;
   }
 
-  // ── Extract and validate A2UI response ────────────────
-  const candidate = response.candidates?.[0];
-  const textPart = candidate?.content?.parts?.find((p: any) => p.text);
-
-  if (!textPart || !(textPart as any).text) {
-    console.error('❌ No text response from Gemini');
-    return {
-      a2ui: createMockResponse(userMessage),
-      toolsUsed,
-    };
-  }
+  // ── Extract and validate A2UI response ────────────────────────
+  const rawContent = response?.choices[0]?.message?.content || '{}';
+  const finalContent = repairJson(rawContent);
 
   try {
-    let rawText = (textPart as any).text;
-    if (rawText.startsWith('```json')) {
-      rawText = rawText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (rawText.startsWith('```')) {
-      rawText = rawText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-    const parsed = JSON.parse(rawText);
+    const parsed = JSON.parse(finalContent);
     const validated = A2UIMessageSchema.parse(parsed);
 
     return {
@@ -246,7 +216,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     };
   } catch (err: any) {
     console.error('❌ Failed to parse A2UI response:', err.message);
-    console.error('Raw response:', (textPart as any).text);
+    console.error('Raw response:', rawContent);
 
     return {
       a2ui: createMockResponse(userMessage),

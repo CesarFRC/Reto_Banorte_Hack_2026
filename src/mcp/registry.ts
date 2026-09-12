@@ -1,10 +1,9 @@
 import type { MCPTool } from './types.js';
-import { zodToGeminiParams } from './types.js';
-import type { FunctionDeclaration } from '@google/genai';
+import { zodToJsonSchemaParams } from './types.js';
 
 /**
  * Central registry for all MCP tools.
- * Handles registration, Gemini format conversion, and execution.
+ * Handles registration, Groq/OpenAI format conversion, and execution.
  */
 export class MCPRegistry {
   private tools = new Map<string, MCPTool>();
@@ -29,20 +28,23 @@ export class MCPRegistry {
   }
 
   /**
-   * Convert all registered tools to Gemini FunctionDeclaration format
+   * Convert all registered tools to Groq/OpenAI function format
    */
-  toGeminiTools(): { functionDeclarations: FunctionDeclaration[] } {
-    const declarations: FunctionDeclaration[] = [];
+  toGroqTools(): any[] {
+    const groqTools: any[] = [];
 
     for (const tool of this.tools.values()) {
-      declarations.push({
-        name: tool.name,
-        description: tool.description,
-        parameters: zodToGeminiParams(tool.parameters),
+      groqTools.push({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: zodToJsonSchemaParams(tool.parameters),
+        }
       });
     }
 
-    return { functionDeclarations: declarations };
+    return groqTools;
   }
 
   /**
