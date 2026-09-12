@@ -147,7 +147,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const toolsConfig = mcpRegistry.toGeminiTools();
 
   let response = await genai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3.6-flash',
     contents,
     config: {
       systemInstruction: SYSTEM_PROMPT,
@@ -200,7 +200,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
 
     // Call Gemini again with tool results + structured output
     response = await genai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
