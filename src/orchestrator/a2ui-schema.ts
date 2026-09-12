@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 import { Type } from '@google/genai';
 
 export const A2UI_COMPONENTS = [
@@ -36,71 +36,71 @@ export const A2UIMessageSchema = z.object({
 
 export type A2UIMessage = z.infer<typeof A2UIMessageSchema>;
 
-export const A2UI_GEMINI_SCHEMA = {
-  type: Type.OBJECT,
+export const A2UI_JSON_SCHEMA = {
+  type: "object",
   properties: {
     speechText: {
-      type: Type.STRING,
+      type: "string",
       description:
         'Texto corto, empatico y sereno para sintesis de voz. Maximo 2-3 oraciones. Sin emojis.',
     },
     component: {
-      type: Type.STRING,
+      type: "string",
       description: 'Nombre del componente React a renderizar.',
       enum: [...A2UI_COMPONENTS],
     },
     props: {
-      type: Type.OBJECT,
+      type: "object",
       description:
         'Propiedades dinamicas del componente visual con todos sus datos.',
       properties: {
-        cardNumber: { type: Type.STRING, description: '16 digitos de la tarjeta' },
-        cardHolder: { type: Type.STRING, description: 'Nombre del titular' },
-        expiryDate: { type: Type.STRING, description: 'Fecha de vencimiento MM/YY' },
-        cvv: { type: Type.STRING, description: 'CVV dinamico de 3 digitos' },
-        spendingLimit: { type: Type.NUMBER, description: 'Limite de gasto en MXN' },
-        remainingSeconds: { type: Type.NUMBER, description: 'Segundos restantes de vida' },
-        brand: { type: Type.STRING, description: 'visa o mastercard' },
+        cardNumber: { type: "string", description: '16 digitos de la tarjeta' },
+        cardHolder: { type: "string", description: 'Nombre del titular' },
+        expiryDate: { type: "string", description: 'Fecha de vencimiento MM/YY' },
+        cvv: { type: "string", description: 'CVV dinamico de 3 digitos' },
+        spendingLimit: { type: "number", description: 'Limite de gasto en MXN' },
+        remainingSeconds: { type: "number", description: 'Segundos restantes de vida' },
+        brand: { type: "string", description: 'visa o mastercard' },
 
-        cardInfo: { type: Type.OBJECT, description: 'Informacion de la tarjeta con id, lastFour, type, isFrozen' },
-        suspiciousTransaction: { type: Type.OBJECT, description: 'Transaccion sospechosa' },
-        recentTransactions: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: 'Lista de transacciones recientes' },
-        plasticEnabled: { type: Type.BOOLEAN, description: 'Estado del plastico fisico' },
+        cardInfo: { type: "object", description: 'Informacion de la tarjeta con id, lastFour, type, isFrozen' },
+        suspiciousTransaction: { type: "object", description: 'Transaccion sospechosa' },
+        recentTransactions: { type: "array", items: { type: "object" }, description: 'Lista de transacciones recientes' },
+        plasticEnabled: { type: "boolean", description: 'Estado del plastico fisico' },
 
-        subscriptions: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: 'Lista de suscripciones activas' },
-        totalMonthlySpend: { type: Type.NUMBER, description: 'Gasto total mensual' },
+        subscriptions: { type: "array", items: { type: "object" }, description: 'Lista de suscripciones activas' },
+        totalMonthlySpend: { type: "number", description: 'Gasto total mensual' },
 
-        maxAmount: { type: Type.NUMBER, description: 'Monto maximo de nomina' },
-        minAmount: { type: Type.NUMBER, description: 'Monto minimo' },
-        defaultAmount: { type: Type.NUMBER, description: 'Monto preseleccionado' },
-        disbursementDate: { type: Type.STRING, description: 'Fecha estimada de dispersion' },
-        installmentOptions: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: 'Opciones de quincenas' },
-        employerName: { type: Type.STRING, description: 'Empresa empleadora' },
+        maxAmount: { type: "number", description: 'Monto maximo de nomina' },
+        minAmount: { type: "number", description: 'Monto minimo' },
+        defaultAmount: { type: "number", description: 'Monto preseleccionado' },
+        disbursementDate: { type: "string", description: 'Fecha estimada de dispersion' },
+        installmentOptions: { type: "array", items: { type: "object" }, description: 'Opciones de quincenas' },
+        employerName: { type: "string", description: 'Empresa empleadora' },
 
-        title: { type: Type.STRING, description: 'Titulo de confirmacion (o de DynamicBankView)' },
-        subtitle: { type: Type.STRING, description: 'Subtitulo (opcional)' },
-        description: { type: Type.STRING, description: 'Descripcion de confirmacion' },
-        details: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: 'Detalles clave-valor' },
-        folio: { type: Type.STRING, description: 'Folio de operacion' },
-        type: { type: Type.STRING, description: 'payment | card | subscription | dispute | advance' },
+        title: { type: "string", description: 'Titulo de confirmacion (o de DynamicBankView)' },
+        subtitle: { type: "string", description: 'Subtitulo (opcional)' },
+        description: { type: "string", description: 'Descripcion de confirmacion' },
+        details: { type: "array", items: { type: "object" }, description: 'Detalles clave-valor' },
+        folio: { type: "string", description: 'Folio de operacion' },
+        type: { type: "string", description: 'payment | card | subscription | dispute | advance' },
 
         elements: {
-          type: Type.ARRAY,
+          type: "array",
           items: {
-            type: Type.OBJECT,
+            type: "object",
             properties: {
-              type: { type: Type.STRING, description: 'header | text | key_value | bar_chart | action_button' },
-              content: { type: Type.STRING, description: 'Texto del header o text' },
-              label: { type: Type.STRING, description: 'Etiqueta para key_value o action_button' },
-              value: { type: Type.STRING, description: 'Valor para key_value' },
-              action: { type: Type.STRING, description: 'Evento para action_button' },
+              type: { type: "string", description: 'header | text | key_value | bar_chart | action_button' },
+              content: { type: "string", description: 'Texto del header o text' },
+              label: { type: "string", description: 'Etiqueta para key_value o action_button' },
+              value: { type: "string", description: 'Valor para key_value' },
+              action: { type: "string", description: 'Evento para action_button' },
               data: {
-                type: Type.ARRAY,
+                type: "array",
                 items: {
-                  type: Type.OBJECT,
+                  type: "object",
                   properties: {
-                    label: { type: Type.STRING },
-                    value: { type: Type.NUMBER }
+                    label: { type: "string" },
+                    value: { type: "number" }
                   }
                 },
                 description: 'Datos para bar_chart'
@@ -112,10 +112,10 @@ export const A2UI_GEMINI_SCHEMA = {
       },
     },
     availableActions: {
-      type: Type.ARRAY,
+      type: "array",
       description:
         'Acciones disponibles para el usuario desde esta UI.',
-      items: { type: Type.OBJECT },
+      items: { type: "object" },
     },
   },
   required: ['speechText', 'component', 'props', 'availableActions'],

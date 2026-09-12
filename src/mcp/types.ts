@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { Type, type FunctionDeclaration } from '@google/genai';
 
 // ─── MCP Tool Definition ────────────────────────────────
 export interface MCPTool {
@@ -10,13 +9,12 @@ export interface MCPTool {
 }
 
 /**
- * Converts a Zod schema to a Gemini-compatible parameter schema.
- * Handles string, number, boolean, array, and enum types.
+ * Converts a Zod schema to a standard JSON Schema for OpenAI/Groq function calling.
  */
-export function zodToGeminiParams(schema: z.ZodObject<any>): {
-  type: Type;
+export function zodToJsonSchemaParams(schema: z.ZodObject<any>): {
+  type: string;
   properties: Record<string, any>;
-  required: string[];
+  required?: string[];
 } {
   const shape = schema.shape;
   const properties: Record<string, any> = {};
@@ -24,7 +22,7 @@ export function zodToGeminiParams(schema: z.ZodObject<any>): {
 
   for (const [key, value] of Object.entries(shape)) {
     const zodField = value as z.ZodTypeAny;
-    properties[key] = zodFieldToGemini(zodField);
+    properties[key] = zodFieldToJsonSchema(zodField);
 
     // Check if field is required (not optional)
     if (!zodField.isOptional()) {
@@ -33,39 +31,39 @@ export function zodToGeminiParams(schema: z.ZodObject<any>): {
   }
 
   return {
-    type: Type.OBJECT,
+    type: "object",
     properties,
-    required,
+    ...(required.length > 0 && { required }),
   };
 }
 
-function zodFieldToGemini(field: z.ZodTypeAny): Record<string, any> {
+function zodFieldToJsonSchema(field: z.ZodTypeAny): Record<string, any> {
   const description = field.description || '';
 
   // Unwrap optional
   if (field instanceof z.ZodOptional) {
-    return zodFieldToGemini(field._def.innerType);
+    return zodFieldToJsonSchema(field._def.innerType);
   }
 
   // String
   if (field instanceof z.ZodString) {
-    return { type: Type.STRING, description };
+    return { type: "string", description };
   }
 
   // Number
   if (field instanceof z.ZodNumber) {
-    return { type: Type.NUMBER, description };
+    return { type: "number", description };
   }
 
   // Boolean
   if (field instanceof z.ZodBoolean) {
-    return { type: Type.BOOLEAN, description };
+    return { type: "boolean", description };
   }
 
   // Enum
   if (field instanceof z.ZodEnum) {
     return {
-      type: Type.STRING,
+      type: "string",
       description,
       enum: field._def.values,
     };
@@ -74,12 +72,12 @@ function zodFieldToGemini(field: z.ZodTypeAny): Record<string, any> {
   // Array
   if (field instanceof z.ZodArray) {
     return {
-      type: Type.ARRAY,
+      type: "array",
       description,
-      items: zodFieldToGemini(field._def.type),
+      items: zodFieldToJsonSchema(field._def.type),
     };
   }
 
   // Default fallback
-  return { type: Type.STRING, description };
+  return { type: "string", description };
 }

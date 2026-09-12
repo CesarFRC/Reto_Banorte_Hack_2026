@@ -19,13 +19,24 @@ export interface Transaction {
 // ─── Store ──────────────────────────────────────────────
 export const transactionsStore = new Map<string, Transaction>();
 
+// ─── Date Helper ────────────────────────────────────────
+function formatDate(isoString: string): string {
+  const d = new Date(isoString);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${mins}`;
+}
+
 // ─── Seed ───────────────────────────────────────────────
 export function seedTransactions(): void {
   const now = new Date();
   const daysAgo = (d: number) =>
-    new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString();
+    formatDate(new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString());
   const hoursAgo = (h: number) =>
-    new Date(now.getTime() - h * 60 * 60 * 1000).toISOString();
+    formatDate(new Date(now.getTime() - h * 60 * 60 * 1000).toISOString());
 
   const txs: Transaction[] = [
     {
