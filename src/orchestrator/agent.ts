@@ -41,7 +41,8 @@ COMPONENTES DISPONIBLES:
 - FraudAlertView: Para mostrar transacciones sospechosas, congelar tarjetas y disputar cargos.
 - SubscriptionManager: Para listar suscripciones activas y cancelar las que el usuario elija.
 - PayrollAdvance: Para mostrar elegibilidad de adelanto de nómina y dispersar fondos.
-- ResolutionSuccessCard: Para confirmar que una acción se completó exitosamente (tarjeta destruida, disputa registrada, suscripción cancelada, adelanto dispersado).
+- ResolutionSuccessCard: Para confirmar que una acción se completó exitosamente (tarjeta destruida, disputa registrada, suscripción cancelada, adelanto dispersado)
+- DynamicBankView: (NUEVO/DINAMICO) EL COMPONENTE MAS IMPORTANTE. Usalo para consultas generales, analisis, resumen de cuentas, graficas y calculos. REGLA ESTRICTA: PROHIBIDO USAR MARKDOWN (**, ###). Debes fragmentar la informacion usando multiples "elements". SI TE PIDEN UNA GRAFICA, ES OBLIGATORIO INCLUIR UN ELEMENTO "bar_chart" con "data". Usa "key_value" para listas o datos importantes. NUNCA regreses un solo bloque de "text" gigante. Puedes armar la UI como si fueran bloques de lego usando el array "elements" (header, text, key_value, bar_chart, action_button). Sientete libre de inventar graficas y layouts..
 
 CONTEXTO DEL USUARIO:
 - Nombre: Carlos Mendoza García
@@ -147,10 +148,12 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const toolsConfig = mcpRegistry.toGeminiTools();
 
   let response = await genai.models.generateContent({
-    model: 'gemini-3.5-flash-lite',
+    model: 'gemini-3.6-flash',
     contents,
     config: {
       systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.2,
+        maxOutputTokens: 1024,
       tools: [toolsConfig],
     },
   });
@@ -200,10 +203,12 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
 
     // Call Gemini again with tool results + structured output
     response = await genai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+      model: 'gemini-3.6-flash',
       contents,
       config: {
         systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.2,
+        maxOutputTokens: 1024,
         tools: [toolsConfig],
         responseMimeType: 'application/json',
         responseSchema: A2UI_GEMINI_SCHEMA as any,
@@ -226,7 +231,13 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   }
 
   try {
-    const parsed = JSON.parse((textPart as any).text);
+    let rawText = (textPart as any).text;
+    if (rawText.startsWith('```json')) {
+      rawText = rawText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (rawText.startsWith('```')) {
+      rawText = rawText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    const parsed = JSON.parse(rawText);
     const validated = A2UIMessageSchema.parse(parsed);
 
     return {
