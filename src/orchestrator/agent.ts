@@ -55,9 +55,38 @@ Siempre responde en español mexicano. Se calida pero profesional.
 
 REGLAS DE FORMATO:
 - Las fechas en el JSON siempre deben tener formato DD/MM/YYYY HH:mm (ej. 12/09/2026 15:30). ¡Nunca uses ISO 8601 ni la letra T/Z!
-- Si no conoces un dato, déjalo vacío o usa datos del contexto.
+- En los elementos de DynamicBankView, usa siempre el campo "content" (NO "text", NO "title") para el texto de header y text. Para key_value usa "label" y "value". Para bar_chart usa "data".
+- Mantén los elementos mínimos y concisos: máximo 5 elements por DynamicBankView para no exceder el limite de tokens.
 
 RESPUESTA OBLIGATORIA: JSON puro con exactamente estas claves: speechText (string), component (uno de los listados arriba), props (objeto con datos de la herramienta), availableActions (array de strings). SIN texto extra, SIN markdown, SOLO el JSON.`;
+
+// ─── JSON Auto-Repair ───────────────────────────────────────
+function repairJson(raw: string): string {
+  // Remove common model preambles (```json or similar)
+  let s = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  // Try to parse as-is first
+  try { JSON.parse(s); return s; } catch {}
+
+  // Count open/close brackets to close unclosed ones
+  const openCurlies = (s.match(/{/g) || []).length;
+  const closeCurlies = (s.match(/}/g) || []).length;
+  const openSquares = (s.match(/\[/g) || []).length;
+  const closeSquares = (s.match(/]/g) || []).length;
+
+  // If the string ends mid-value, truncate at last complete key-value pair
+  // Remove trailing incomplete segment: ,"key": "incomplete...
+  s = s.replace(/,\s*"[^"]*"\s*:\s*"[^"]*$/, '');
+  s = s.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, '');
+  s = s.replace(/,\s*"[^"]*"\s*$/, '');
+  s = s.replace(/,\s*\{[^}]*$/, '');
+
+  // Close open arrays then objects
+  for (let i = 0; i < openSquares - closeSquares; i++) s += ']';
+  for (let i = 0; i < openCurlies - closeCurlies; i++) s += '}';
+
+  return s;
+}
 
 // ─── Mock Response (when no API key) ────────────────────
 function createMockResponse(message: string): A2UIMessage {
@@ -136,7 +165,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
       messages,
       tools: tools.length > 0 ? tools : undefined,
       temperature: 0.2,
-      max_tokens: 700,
+      max_tokens: 900,
     });
 
     const choice = response.choices[0];
@@ -173,8 +202,9 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     break;
   }
 
-  // ── Extract and validate A2UI response ────────────────
-  const finalContent = response?.choices[0]?.message?.content || '{}';
+  // ── Extract and validate A2UI response ────────────────────────
+  const rawContent = response?.choices[0]?.message?.content || '{}';
+  const finalContent = repairJson(rawContent);
 
   try {
     const parsed = JSON.parse(finalContent);
@@ -186,7 +216,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     };
   } catch (err: any) {
     console.error('❌ Failed to parse A2UI response:', err.message);
-    console.error('Raw response:', finalContent);
+    console.error('Raw response:', rawContent);
 
     return {
       a2ui: createMockResponse(userMessage),
