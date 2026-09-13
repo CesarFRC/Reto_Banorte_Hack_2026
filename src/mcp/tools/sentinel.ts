@@ -22,7 +22,7 @@ export const freezeCard: MCPTool = {
     card_id: z.string().describe('ID de la tarjeta a congelar'),
   }),
   execute: async (params: { card_id: string }) => {
-    const card = freezeCardInStore(params.card_id);
+    const card = await freezeCardInStore(params.card_id);
 
     return {
       frozen: true,
@@ -44,7 +44,7 @@ export const getSuspiciousTx: MCPTool = {
     user_id: z.string().describe('ID del usuario'),
   }),
   execute: async (params: { user_id: string }) => {
-    const suspicious = getSuspiciousTransactions(params.user_id);
+    const suspicious = await getSuspiciousTransactions(params.user_id);
 
     const totalAtRisk = suspicious.reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -86,17 +86,17 @@ export const fileFraudDispute: MCPTool = {
     tx_id: z.string().describe('ID de la transacción a disputar'),
   }),
   execute: async (params: { tx_id: string }) => {
-    const tx = disputeTransaction(params.tx_id);
+    const tx = await disputeTransaction(params.tx_id);
     const folio = generateFolio();
 
     // Freeze the affected card
-    const card = getCard(tx.cardId);
+    const card = await getCard(tx.cardId);
     if (card && card.status === 'active') {
-      freezeCardInStore(tx.cardId);
+      await freezeCardInStore(tx.cardId);
     }
 
     // Issue replacement virtual card
-    const replacement = createVirtualCard('usr_banorte_demo', 80000, 60 * 24 * 30); // 30 days
+    const replacement = await createVirtualCard('usr_banorte_demo', 80000, 60 * 24 * 30); // 30 days
 
     return {
       folio,

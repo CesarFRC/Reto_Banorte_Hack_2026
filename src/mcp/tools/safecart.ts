@@ -27,7 +27,7 @@ export const generateDisposableCard: MCPTool = {
       ),
   }),
   execute: async (params: { limit: number; expiry_minutes: number }) => {
-    const card = createVirtualCard(
+    const card = await createVirtualCard(
       'usr_banorte_demo',
       params.limit,
       params.expiry_minutes
@@ -57,7 +57,7 @@ export const terminateVirtualCard: MCPTool = {
     card_id: z.string().describe('ID de la tarjeta virtual a destruir'),
   }),
   execute: async (params: { card_id: string }) => {
-    const card = destroyCard(params.card_id);
+    const card = await destroyCard(params.card_id);
 
     return {
       success: true,
@@ -78,7 +78,7 @@ export const simulateMerchantCharge: MCPTool = {
     amount: z.number().describe('Monto del cargo en MXN'),
   }),
   execute: async (params: { card_id: string; amount: number }) => {
-    const card = getCard(params.card_id);
+    const card = await getCard(params.card_id);
     if (!card) throw new Error(`Tarjeta no encontrada: ${params.card_id}`);
     if (card.status !== 'active')
       throw new Error(`Tarjeta no está activa: ${card.status}`);
@@ -89,7 +89,7 @@ export const simulateMerchantCharge: MCPTool = {
       // Charge succeeds
       card.balance -= params.amount;
 
-      addTransaction({
+      await addTransaction({
         userId: card.userId,
         cardId: card.id,
         merchant: 'Comercio Simulado',
@@ -104,7 +104,7 @@ export const simulateMerchantCharge: MCPTool = {
       });
     } else {
       // Over limit — auto-destroy
-      destroyCard(card.id);
+      await destroyCard(card.id);
     }
 
     return {

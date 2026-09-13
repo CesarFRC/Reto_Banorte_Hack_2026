@@ -16,7 +16,7 @@ export const checkPayrollEligibility: MCPTool = {
     user_id: z.string().describe('ID del usuario'),
   }),
   execute: async (params: { user_id: string }) => {
-    const user = getUserOrThrow(params.user_id);
+    const user = await getUserOrThrow(params.user_id);
 
     const maxAmount = Math.floor(user.salary * 0.5);
     const annualRate = 0.18; // 18% anual
@@ -59,7 +59,7 @@ export const disburseAdvance: MCPTool = {
     installments: z.number().describe('Número de parcialidades (1, 2, 3, 4 o 6)'),
   }),
   execute: async (params: { amount: number; installments: number }) => {
-    const user = getUserOrThrow('usr_banorte_demo');
+    const user = await getUserOrThrow('usr_banorte_demo');
     const maxAmount = Math.floor(user.salary * 0.5);
 
     if (params.amount > maxAmount) {

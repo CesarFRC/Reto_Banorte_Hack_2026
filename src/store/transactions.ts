@@ -1,163 +1,54 @@
 import { generateId } from '../utils/id.js';
+import { TransactionModel } from './models.js';
 
-// ─── Types ──────────────────────────────────────────────
 export interface Transaction {
   id: string;
   userId: string;
   cardId: string;
   merchant: string;
   amount: number;
-  category: string;
-  date: string; // ISO
-  status: 'completed' | 'pending' | 'disputed' | 'reversed';
+  category: 'food' | 'transport' | 'entertainment' | 'shopping' | 'services' | 'health' | 'income' | 'simulated';
+  date: string; // ISO String
+  status: 'completed' | 'pending' | 'disputed' | 'declined';
   suspicious: boolean;
-  riskScore: number; // 0.0 - 1.0
-  duplicateOf: string | null; // ID of the original tx if duplicate
+  riskScore: number;
+  duplicateOf: string | null;
   description: string;
 }
 
-// ─── Store ──────────────────────────────────────────────
-export const transactionsStore = new Map<string, Transaction>();
-
-// ─── Date Helper ────────────────────────────────────────
-function formatDate(isoString: string): string {
-  const d = new Date(isoString);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const mins = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${mins}`;
+export async function seedTransactions(): Promise<void> {
+  const count = await TransactionModel.countDocuments();
+  if (count > 0) return;
+  console.log('Seeded transactions - DB already has them from your data dump');
 }
 
-// ─── Seed ───────────────────────────────────────────────
-export function seedTransactions(): void {
-  const now = new Date();
-  const daysAgo = (d: number) =>
-    formatDate(new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString());
-  const hoursAgo = (h: number) =>
-    formatDate(new Date(now.getTime() - h * 60 * 60 * 1000).toISOString());
-
-  const txs: Transaction[] = [
-    {
-      id: 'tx_001',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'OXXO Reforma 221',
-      amount: 187.5,
-      category: 'convenience',
-      date: daysAgo(1),
-      status: 'completed',
-      suspicious: false,
-      riskScore: 0.1,
-      duplicateOf: null,
-      description: 'Compra en tienda de conveniencia',
-    },
-    {
-      id: 'tx_002',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'Amazon MX',
-      amount: 2499.0,
-      category: 'online_shopping',
-      date: daysAgo(2),
-      status: 'completed',
-      suspicious: false,
-      riskScore: 0.2,
-      duplicateOf: null,
-      description: 'Compra en línea Amazon',
-    },
-    {
-      id: 'tx_003',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'Amazon MX',
-      amount: 2499.0,
-      category: 'online_shopping',
-      date: daysAgo(2),
-      status: 'completed',
-      suspicious: true,
-      riskScore: 0.85,
-      duplicateOf: 'tx_002',
-      description: 'Cargo duplicado — mismo monto, misma fecha, mismo comercio',
-    },
-    {
-      id: 'tx_004',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'WISH.COM *ELECTRONICS',
-      amount: 8750.0,
-      category: 'international',
-      date: hoursAgo(6),
-      status: 'completed',
-      suspicious: true,
-      riskScore: 0.92,
-      duplicateOf: null,
-      description:
-        'Cargo internacional no reconocido a las 3:00 AM — posible fraude',
-    },
-    {
-      id: 'tx_005',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'Uber Eats',
-      amount: 342.0,
-      category: 'food_delivery',
-      date: daysAgo(3),
-      status: 'completed',
-      suspicious: false,
-      riskScore: 0.05,
-      duplicateOf: null,
-      description: 'Pedido de comida a domicilio',
-    },
-    {
-      id: 'tx_006',
-      userId: 'usr_banorte_demo',
-      cardId: 'card_fisica_001',
-      merchant: 'ALIEXPRESS HK',
-      amount: 4200.0,
-      category: 'international',
-      date: hoursAgo(3),
-      status: 'pending',
-      suspicious: true,
-      riskScore: 0.78,
-      duplicateOf: null,
-      description: 'Cargo pendiente desde Hong Kong — patrón inusual',
-    },
-  ];
-
-  for (const tx of txs) {
-    transactionsStore.set(tx.id, tx);
-  }
-
-  console.log(`  ✓ Seeded ${transactionsStore.size} transactions (${txs.filter(t => t.suspicious).length} suspicious)`);
+export async function getUserTransactions(userId: string): Promise<Transaction[]> {
+  const txs = await TransactionModel.find({ userId }).sort({ _id: -1 }).lean();
+  return txs.map(t => ({ ...t, id: t._id })) as any;
 }
 
-// ─── Helpers ────────────────────────────────────────────
-export function getUserTransactions(userId: string): Transaction[] {
-  return Array.from(transactionsStore.values()).filter(
-    (t) => t.userId === userId
-  );
+export async function getSuspiciousTransactions(userId: string): Promise<Transaction[]> {
+  const txs = await TransactionModel.find({ userId, suspicious: true }).lean();
+  return txs.map(t => ({ ...t, id: t._id })) as any;
 }
 
-export function getSuspiciousTransactions(userId: string): Transaction[] {
-  return getUserTransactions(userId).filter((t) => t.suspicious);
+export async function getTransaction(txId: string): Promise<Transaction | undefined> {
+  const t = await TransactionModel.findById(txId).lean();
+  if (!t) return undefined;
+  t.id = t._id;
+  return t as any;
 }
 
-export function getTransaction(txId: string): Transaction | undefined {
-  return transactionsStore.get(txId);
+export async function disputeTransaction(txId: string): Promise<Transaction> {
+  const t = await TransactionModel.findByIdAndUpdate(txId, { status: 'disputed' }, { new: true }).lean();
+  if (!t) throw new Error(`Transacción no encontrada: ${txId}`);
+  t.id = t._id;
+  return t as any;
 }
 
-export function disputeTransaction(txId: string): Transaction {
-  const tx = transactionsStore.get(txId);
-  if (!tx) throw new Error(`Transacción no encontrada: ${txId}`);
-  tx.status = 'disputed';
-  return tx;
-}
-
-export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
-  const id = generateId('tx');
-  const fullTx = { ...tx, id };
-  transactionsStore.set(id, fullTx);
-  return fullTx;
+export async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<Transaction> {
+  const id = generateId('tx_');
+  const doc = { _id: id, id, ...tx };
+  await TransactionModel.create(doc);
+  return doc as any;
 }

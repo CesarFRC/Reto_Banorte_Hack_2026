@@ -1,104 +1,90 @@
 import { generateId, generateCardNumber, generateCVV } from '../utils/id.js';
+import { CardModel } from './models.js';
+import { getUserOrThrow } from './users.js';
 
-// ─── Types ──────────────────────────────────────────────
 export interface Card {
   id: string;
   userId: string;
-  number: string;
-  cvv: string;
   type: 'physical' | 'virtual';
-  status: 'active' | 'frozen' | 'destroyed';
-  limit: number;
-  balance: number; // remaining limit for virtual cards
-  expiresAt: string | null; // ISO string, null for physical
-  createdAt: string;
-  destroyedAt: string | null;
+  number: string;
   label: string;
+  balance: number;
+  limit: number;
+  cvv: string;
+  status: 'active' | 'frozen';
+  createdAt: string;
+  expiresAt: string | null;
+  destroyedAt: string | null;
 }
 
-// ─── Store ──────────────────────────────────────────────
-export const cardsStore = new Map<string, Card>();
-
-// ─── Seed ───────────────────────────────────────────────
-export function seedCards(): void {
-  const physicalCard: Card = {
+export async function seedCards(): Promise<void> {
+  const count = await CardModel.countDocuments();
+  if (count > 0) return;
+  const c = {
+    _id: 'card_fisica_001',
     id: 'card_fisica_001',
     userId: 'usr_banorte_demo',
-    number: '4915 8832 7741 3029',
-    cvv: '814',
     type: 'physical',
-    status: 'active',
-    limit: 80000,
-    balance: 80000,
-    expiresAt: null,
-    createdAt: '2025-01-15T10:00:00Z',
-    destroyedAt: null,
+    number: '4915 8832 7741 3029',
     label: 'Tarjeta Banorte Platinum',
+    balance: 80000,
+    limit: 80000,
+    cvv: '814',
+    status: 'frozen',
+    createdAt: new Date('2025-01-15T10:00:00Z'),
+    expiresAt: null,
+    destroyedAt: null
   };
-
-  cardsStore.set(physicalCard.id, physicalCard);
-
-  console.log(`  ✓ Seeded ${cardsStore.size} cards`);
+  await CardModel.create(c);
+  console.log('Seeded cards');
 }
 
-// ─── Helpers ────────────────────────────────────────────
-export function getCard(cardId: string): Card | undefined {
-  return cardsStore.get(cardId);
+export async function getCard(cardId: string): Promise<Card | undefined> {
+  const c = await CardModel.findById(cardId).lean();
+  if (!c) return undefined;
+  c.id = c._id;
+  return c as any;
 }
 
-export function getUserCards(userId: string): Card[] {
-  return Array.from(cardsStore.values()).filter((c) => c.userId === userId);
+export async function getUserCards(userId: string): Promise<Card[]> {
+  const cards = await CardModel.find({ userId }).lean();
+  return cards.map(c => ({ ...c, id: c._id })) as any;
 }
 
-export function createVirtualCard(
-  userId: string,
-  limit: number,
-  expiryMinutes: number
-): Card {
+export async function createVirtualCard(userId: string, limit: number, expiryMinutes: number): Promise<Card> {
+  await getUserOrThrow(userId);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + expiryMinutes * 60 * 1000);
-
-  const card: Card = {
-    id: generateId('vcard'),
+  const expires = new Date(now.getTime() + expiryMinutes * 60000);
+  const id = generateId('card_virt_');
+  const card = {
+    _id: id,
+    id,
     userId,
-    number: generateCardNumber(),
-    cvv: generateCVV(),
     type: 'virtual',
-    status: 'active',
-    limit,
+    number: generateCardNumber(),
+    label: 'SafeCart Virtual',
     balance: limit,
-    expiresAt: expiresAt.toISOString(),
+    limit,
+    cvv: generateCVV(),
+    status: 'active',
     createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
     destroyedAt: null,
-    label: `SafeCart Virtual • $${limit.toLocaleString()} MXN`,
   };
-
-  cardsStore.set(card.id, card);
-
-  // Auto-destruction timer
-  setTimeout(() => {
-    const c = cardsStore.get(card.id);
-    if (c && c.status === 'active') {
-      c.status = 'destroyed';
-      c.destroyedAt = new Date().toISOString();
-      console.log(`  ⏰ Auto-destroyed virtual card ${card.id} (expired)`);
-    }
-  }, expiryMinutes * 60 * 1000);
-
-  return card;
+  await CardModel.create(card);
+  return card as any;
 }
 
-export function destroyCard(cardId: string): Card {
-  const card = cardsStore.get(cardId);
-  if (!card) throw new Error(`Tarjeta no encontrada: ${cardId}`);
-  card.status = 'destroyed';
-  card.destroyedAt = new Date().toISOString();
-  return card;
+export async function destroyCard(cardId: string): Promise<Card> {
+  const card = await CardModel.findByIdAndUpdate(cardId, { status: 'frozen', destroyedAt: new Date().toISOString() }, { new: true }).lean();
+  if (!card) throw new Error(`Card ${cardId} not found`);
+  card.id = card._id;
+  return card as any;
 }
 
-export function freezeCard(cardId: string): Card {
-  const card = cardsStore.get(cardId);
-  if (!card) throw new Error(`Tarjeta no encontrada: ${cardId}`);
-  card.status = 'frozen';
-  return card;
+export async function freezeCard(cardId: string): Promise<Card> {
+  const card = await CardModel.findByIdAndUpdate(cardId, { status: 'frozen' }, { new: true }).lean();
+  if (!card) throw new Error(`Card ${cardId} not found`);
+  card.id = card._id;
+  return card as any;
 }

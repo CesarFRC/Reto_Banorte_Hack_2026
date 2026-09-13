@@ -1,14 +1,15 @@
-// ─── Central Store Barrel Export ─────────────────────────
+// 🟢 Central Store Barrel Export - Async
+export * from './models.js';
+
 import { seedUsers } from './users.js';
 import { seedCards } from './cards.js';
 import { seedTransactions } from './transactions.js';
 import { seedSubscriptions } from './subscriptions.js';
 
-export { usersStore, seedUsers, getUser, getUserOrThrow } from './users.js';
+export { seedUsers, getUser, getUserOrThrow } from './users.js';
 export type { User } from './users.js';
 
 export {
-  cardsStore,
   seedCards,
   getCard,
   getUserCards,
@@ -19,7 +20,6 @@ export {
 export type { Card } from './cards.js';
 
 export {
-  transactionsStore,
   seedTransactions,
   getUserTransactions,
   getSuspiciousTransactions,
@@ -30,7 +30,6 @@ export {
 export type { Transaction } from './transactions.js';
 
 export {
-  subscriptionsStore,
   seedSubscriptions,
   getUserSubscriptions,
   getActiveSubscriptions,
@@ -38,12 +37,11 @@ export {
 } from './subscriptions.js';
 export type { Subscription } from './subscriptions.js';
 
-// ─── Seed All ───────────────────────────────────────────
-export function seedAll(): void {
-  console.log('\n🌱 Seeding in-memory store...');
-  seedUsers();
-  seedCards();
-  seedTransactions();
-  seedSubscriptions();
-  console.log('✅ Store ready\n');
+export async function seedAll(): Promise<void> {
+  console.log('\n🟡 Seeding MongoDB...');
+  await seedUsers();
+  await seedCards();
+  await seedTransactions();
+  await seedSubscriptions();
+  console.log('🟢 Store ready\n');
 }

@@ -1,6 +1,6 @@
 import { generateId, generateCardNumber, generateCLABE } from '../utils/id.js';
+import { UserModel } from './models.js';
 
-// ─── Types ──────────────────────────────────────────────
 export interface User {
   id: string;
   name: string;
@@ -9,15 +9,14 @@ export interface User {
   clabe: string;
   cards: string[];
   riskProfile: 'low' | 'medium' | 'high';
-  payrollDay: number; // Day of month
+  payrollDay: number;
 }
 
-// ─── Store ──────────────────────────────────────────────
-export const usersStore = new Map<string, User>();
-
-// ─── Seed ───────────────────────────────────────────────
-export function seedUsers(): void {
-  const demoUser: User = {
+export async function seedUsers(): Promise<void> {
+  const count = await UserModel.countDocuments();
+  if (count > 0) return;
+  const demoUser = {
+    _id: 'usr_banorte_demo',
     id: 'usr_banorte_demo',
     name: 'Carlos Mendoza García',
     email: 'carlos.mendoza@email.com',
@@ -27,19 +26,19 @@ export function seedUsers(): void {
     riskProfile: 'low',
     payrollDay: 15,
   };
-
-  usersStore.set(demoUser.id, demoUser);
-
-  console.log(`  ✓ Seeded ${usersStore.size} users`);
+  await UserModel.create(demoUser);
+  console.log('Seeded users');
 }
 
-// ─── Helpers ────────────────────────────────────────────
-export function getUser(userId: string): User | undefined {
-  return usersStore.get(userId);
+export async function getUser(userId: string): Promise<User | undefined> {
+  const u = await UserModel.findById(userId).lean();
+  if (!u) return undefined;
+  u.id = u._id;
+  return u as any;
 }
 
-export function getUserOrThrow(userId: string): User {
-  const user = usersStore.get(userId);
+export async function getUserOrThrow(userId: string): Promise<User> {
+  const user = await getUser(userId);
   if (!user) throw new Error(`Usuario no encontrado: ${userId}`);
   return user;
 }

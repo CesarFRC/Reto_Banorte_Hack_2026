@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 
 import { env, hasGeminiKey, hasElevenLabsKey } from './config/env.js';
 import { seedAll } from './store/index.js';
+import { connectDB } from './config/db.js';
 import { mcpRegistry } from './mcp/registry.js';
 import { chatRoutes } from './routes/chat.js';
 
@@ -14,6 +15,7 @@ import { safecartTools } from './mcp/tools/safecart.js';
 import { sentinelTools } from './mcp/tools/sentinel.js';
 import { subscriptionTools } from './mcp/tools/subscriptions.js';
 import { payrollTools } from './mcp/tools/payroll.js';
+import { accountTools } from './mcp/tools/account.js';
 
 // ═══════════════════════════════════════════════════════════
 // BANORTE A2UI BACKEND — Entry Point
@@ -28,7 +30,8 @@ async function main() {
   console.log('');
 
   // ── 1. Seed the in-memory store ─────────────────────────
-  seedAll();
+  await connectDB();
+  await seedAll();
 
   // ── 2. Register MCP Tools ───────────────────────────────
   console.log('🔧 Registering MCP tools...');
@@ -36,6 +39,7 @@ async function main() {
   mcpRegistry.registerAll(sentinelTools);
   mcpRegistry.registerAll(subscriptionTools);
   mcpRegistry.registerAll(payrollTools);
+  mcpRegistry.registerAll(accountTools);
   console.log(`  ✓ ${mcpRegistry.size} tools registered: [${mcpRegistry.getToolNames().join(', ')}]`);
   console.log('');
 

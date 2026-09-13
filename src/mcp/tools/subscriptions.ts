@@ -18,7 +18,7 @@ export const getRecurringSubscriptions: MCPTool = {
     user_id: z.string().describe('ID del usuario'),
   }),
   execute: async (params: { user_id: string }) => {
-    const subs = getActiveSubscriptions(params.user_id);
+    const subs = await getActiveSubscriptions(params.user_id);
     const totalMonthly = subs.reduce((sum, s) => sum + s.amount, 0);
 
     return {
@@ -53,7 +53,7 @@ export const cancelSubscriptionTokens: MCPTool = {
       .describe('Array de IDs de suscripciones a cancelar'),
   }),
   execute: async (params: { subscription_ids: string[] }) => {
-    const result = cancelSubsInStore(params.subscription_ids);
+    const result = await cancelSubsInStore(params.subscription_ids);
 
     return {
       cancelled: result.cancelled,
