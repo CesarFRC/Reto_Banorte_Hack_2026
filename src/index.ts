@@ -9,6 +9,7 @@ import { seedAll } from './store/index.js';
 import { connectDB } from './config/db.js';
 import { mcpRegistry } from './mcp/registry.js';
 import { chatRoutes } from './routes/chat.js';
+import { transcribeRoutes } from './routes/transcribe.js';
 
 // ─── Import MCP Tools ───────────────────────────────────
 import { safecartTools } from './mcp/tools/safecart.js';
@@ -81,6 +82,7 @@ async function main() {
 
   // ── 6. Register routes ──────────────────────────────────
   await app.register(chatRoutes);
+  await app.register(transcribeRoutes);
 
   // ── 7. Start server ─────────────────────────────────────
   try {
