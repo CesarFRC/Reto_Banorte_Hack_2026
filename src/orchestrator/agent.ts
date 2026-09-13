@@ -77,7 +77,7 @@ function repairJson(raw: string): string {
   let s = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
 
   // Try to parse as-is first
-  try { JSON.parse(s); return s; } catch {}
+  try { JSON.parse(s); return s; } catch { }
 
   // Count open/close brackets to close unclosed ones
   const openCurlies = (s.match(/{/g) || []).length;
@@ -183,7 +183,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   while (maxIterations > 0) {
     // ── Call Groq ───────────────────────────────────────
     response = await groq.chat.completions.create({
-      model: 'qwen/qwen3.8-27b',
+      model: 'openai/gpt-oss-120b',
       messages,
       tools: tools.length > 0 ? tools : undefined,
       temperature: 0.2,
@@ -202,8 +202,8 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
       for (const tc of message.tool_calls) {
         console.log(`  🔧 Tool call: ${tc.function.name}(${tc.function.arguments})`);
         let args = {};
-        try { args = JSON.parse(tc.function.arguments); } catch(e) {}
-        
+        try { args = JSON.parse(tc.function.arguments); } catch (e) { }
+
         const result = await mcpRegistry.execute(tc.function.name, args);
         toolsUsed.push(tc.function.name);
 
@@ -215,7 +215,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
           content: JSON.stringify(result.success ? result.result : { error: result.error })
         });
       }
-      
+
       maxIterations--;
       continue;
     }
